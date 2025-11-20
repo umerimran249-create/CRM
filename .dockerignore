@@ -1,0 +1,16 @@
+node_modules
+client
+.git
+.env
+.env.*
+*.md
+.DS_Store
+firebase-debug.log
+.firebase
+.firebaserc
+client/build
+server/data
+*.log
+deploy.sh
+deploy.bat
+
