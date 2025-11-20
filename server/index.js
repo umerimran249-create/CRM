@@ -7,27 +7,34 @@ require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 
 const app = express();
 
-// CORS must be FIRST middleware - before any routes
+// CORS must be FIRST - handle ALL requests including OPTIONS
 app.use((req, res, next) => {
-  // Set CORS headers
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
-  res.header('Access-Control-Allow-Credentials', 'true');
+  console.log(`${req.method} ${req.path} - Origin: ${req.headers.origin}`);
   
-  // Handle preflight requests
+  // Set CORS headers for ALL responses
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
+  res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Max-Age', '86400'); // 24 hours
+  
+  // Handle preflight OPTIONS requests immediately
   if (req.method === 'OPTIONS') {
-    return res.sendStatus(200);
+    console.log('Handling OPTIONS preflight request');
+    return res.status(200).end();
   }
+  
   next();
 });
 
-// Also use cors middleware as backup
+// Use cors middleware as additional layer
 app.use(cors({
   origin: '*',
-  credentials: true,
+  credentials: false, // Set to false when using wildcard
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
+  preflightContinue: false,
+  optionsSuccessStatus: 200
 }));
 
 console.log('✅ CORS configured to allow all origins');
