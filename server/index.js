@@ -7,28 +7,43 @@ require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 
 const app = express();
 
-// Middleware
+// Middleware - CORS Configuration
 const allowedOrigins = process.env.CORS_ORIGIN 
-  ? process.env.CORS_ORIGIN.split(',')
+  ? process.env.CORS_ORIGIN.split(',').map(origin => origin.trim())
   : [
       'http://localhost:3000',
       'https://north-6da52.web.app',
       'https://north-6da52.firebaseapp.com',
     ];
 
+console.log('Allowed CORS origins:', allowedOrigins);
+
 const corsOptions = {
   origin: function (origin, callback) {
     // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
+    if (!origin) {
+      return callback(null, true);
+    }
+    
+    // Check if origin is in allowed list
     if (allowedOrigins.indexOf(origin) !== -1 || allowedOrigins.includes('*')) {
       callback(null, true);
     } else {
-      callback(null, true); // Allow all for now, restrict in production
+      // For now, allow all origins (remove this in production for security)
+      console.log('Allowing origin:', origin);
+      callback(null, true);
     }
   },
   credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  exposedHeaders: ['Content-Type', 'Authorization'],
 };
+
 app.use(cors(corsOptions));
+
+// Handle preflight requests explicitly
+app.options('*', cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
