@@ -1,5 +1,5 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
-import api from '../config/axios';
+import { supabase } from '../lib/supabase';
 
 const AuthContext = createContext();
 
@@ -14,23 +14,66 @@ export const useAuth = () => {
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [token, setToken] = useState(localStorage.getItem('token'));
 
   useEffect(() => {
-    if (token) {
-      fetchUser();
-    } else {
-      setLoading(false);
-    }
-  }, [token]);
+    // Get initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        fetchUserData(session.user.id);
+      } else {
+        setLoading(false);
+      }
+    });
 
-  const fetchUser = async () => {
+    // Listen for auth changes
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (session) {
+        await fetchUserData(session.user.id);
+      } else {
+        setUser(null);
+        setLoading(false);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const fetchUserData = async (userId) => {
     try {
-      const response = await api.get('/api/auth/me');
-      setUser(response.data.user);
+      const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', userId)
+        .single();
+
+      if (error && error.code !== 'PGRST116') {
+        // User doesn't exist, create one
+        const { data: authUser } = await supabase.auth.getUser();
+        if (authUser?.user) {
+          const { data: newUser, error: createError } = await supabase
+            .from('users')
+            .insert({
+              id: authUser.user.id,
+              email: authUser.user.email,
+              name: authUser.user.email?.split('@')[0] || 'User',
+              role: 'Team Member',
+              permissions: [],
+              is_active: true,
+            })
+            .select()
+            .single();
+
+          if (!createError && newUser) {
+            setUser(newUser);
+          }
+        }
+      } else if (data) {
+        setUser(data);
+      }
     } catch (error) {
-      localStorage.removeItem('token');
-      setToken(null);
+      console.error('Error fetching user:', error);
     } finally {
       setLoading(false);
     }
@@ -38,24 +81,38 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (email, password) => {
     try {
-      const response = await api.post('/api/auth/login', { email, password });
-      const { token: newToken, user: userData } = response.data;
-      localStorage.setItem('token', newToken);
-      setToken(newToken);
-      setUser(userData);
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) {
+        return {
+          success: false,
+          message: error.message || 'Login failed. Please check your email and password.',
+        };
+      }
+
+      if (data.user) {
+        await fetchUserData(data.user.id);
+      }
+
       return { success: true };
     } catch (error) {
       return {
         success: false,
-        message: error.response?.data?.message || 'Login failed',
+        message: error.message || 'Login failed',
       };
     }
   };
 
-  const logout = () => {
-    localStorage.removeItem('token');
-    setToken(null);
-    setUser(null);
+  const logout = async () => {
+    try {
+      await supabase.auth.signOut();
+      setUser(null);
+    } catch (error) {
+      console.error('Error signing out:', error);
+    }
   };
 
   const hasPermission = (permission) => {
@@ -75,6 +132,7 @@ export const AuthProvider = ({ children }) => {
     isAuthenticated: !!user,
     permissions: user?.permissions || [],
     hasPermission,
+    supabase, // Export supabase client for direct use if needed
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

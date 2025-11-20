@@ -32,10 +32,17 @@ const api = axios.create({
 
 // Add request interceptor to include auth token
 api.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+  async (config) => {
+    // Try Firebase token first (for CORS bypass)
+    const firebaseToken = localStorage.getItem('firebaseToken');
+    if (firebaseToken) {
+      config.headers.Authorization = `Bearer ${firebaseToken}`;
+    } else {
+      // Fallback to JWT token
+      const token = localStorage.getItem('token');
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
     }
     return config;
   },
