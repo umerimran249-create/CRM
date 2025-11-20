@@ -5,8 +5,9 @@
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- Users table
+-- Note: id should match Supabase auth.users id
 CREATE TABLE IF NOT EXISTS users (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   email TEXT UNIQUE NOT NULL,
   name TEXT NOT NULL,
   password_hash TEXT,
@@ -147,7 +148,7 @@ DROP POLICY IF EXISTS "Users can read messages" ON messages;
 
 -- Create policies for authenticated users
 CREATE POLICY "Users can read own data" ON users
-  FOR SELECT USING (auth.uid()::text = id::text);
+  FOR SELECT USING (auth.uid() = id);
 
 CREATE POLICY "Users can read all clients" ON clients
   FOR SELECT USING (auth.role() = 'authenticated');
@@ -163,26 +164,26 @@ CREATE POLICY "Users can read finance" ON finance_entries
 
 CREATE POLICY "Users can read calendar" ON calendar_events
   FOR SELECT USING (
-    auth.uid()::text = created_by_id::text OR 
-    auth.uid()::text = assigned_to_id::text OR
+    auth.uid() = created_by_id OR 
+    auth.uid() = assigned_to_id OR
     auth.role() = 'authenticated'
   );
 
 CREATE POLICY "Users can read conversations" ON conversations
-  FOR SELECT USING (auth.uid()::text = ANY(participants));
+  FOR SELECT USING (auth.uid() = ANY(participants));
 
 CREATE POLICY "Users can read messages" ON messages
   FOR SELECT USING (
     EXISTS (
       SELECT 1 FROM conversations 
       WHERE conversations.id = messages.conversation_id 
-      AND auth.uid()::text = ANY(conversations.participants)
+      AND auth.uid() = ANY(conversations.participants)
     )
   );
 
 -- Allow authenticated users to insert/update/delete (you can restrict this later)
 CREATE POLICY "Users can manage own data" ON users
-  FOR ALL USING (auth.uid()::text = id::text);
+  FOR ALL USING (auth.uid() = id);
 
 CREATE POLICY "Authenticated users can manage clients" ON clients
   FOR ALL USING (auth.role() = 'authenticated');
@@ -198,19 +199,19 @@ CREATE POLICY "Authenticated users can manage finance" ON finance_entries
 
 CREATE POLICY "Users can manage calendar" ON calendar_events
   FOR ALL USING (
-    auth.uid()::text = created_by_id::text OR 
-    auth.uid()::text = assigned_to_id::text
+    auth.uid() = created_by_id OR 
+    auth.uid() = assigned_to_id
   );
 
 CREATE POLICY "Users can manage conversations" ON conversations
-  FOR ALL USING (auth.uid()::text = ANY(participants));
+  FOR ALL USING (auth.uid() = ANY(participants));
 
 CREATE POLICY "Users can manage messages" ON messages
   FOR ALL USING (
     EXISTS (
       SELECT 1 FROM conversations 
       WHERE conversations.id = messages.conversation_id 
-      AND auth.uid()::text = ANY(conversations.participants)
+      AND auth.uid() = ANY(conversations.participants)
     )
   );
 
